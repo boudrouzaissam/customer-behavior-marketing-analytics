@@ -2,7 +2,6 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import plotly.express as px
-import plotly.graph_objects as go
 
 from scipy import stats
 from sklearn.preprocessing import StandardScaler
@@ -97,22 +96,36 @@ df = df[df["Income"] <= df["Income"].quantile(0.99)]
 
 st.sidebar.title("Filters")
 
+education_options = sorted(df["Education"].dropna().unique())
+marital_options = sorted(df["Marital_Status"].dropna().unique())
+
 education_filter = st.sidebar.multiselect(
     "Education",
-    options=sorted(df["Education"].unique()),
-    default=sorted(df["Education"].unique())
+    options=education_options,
+    default=education_options
 )
 
 marital_filter = st.sidebar.multiselect(
     "Marital Status",
-    options=sorted(df["Marital_Status"].unique()),
-    default=sorted(df["Marital_Status"].unique())
+    options=marital_options,
+    default=marital_options
 )
+
+# Security: if the user clears a filter, keep all categories
+if len(education_filter) == 0:
+    education_filter = education_options
+
+if len(marital_filter) == 0:
+    marital_filter = marital_options
 
 df_filtered = df[
     (df["Education"].isin(education_filter))
     & (df["Marital_Status"].isin(marital_filter))
 ]
+
+if df_filtered.empty:
+    st.error("No observations are available with the selected filters. Please adjust the filters.")
+    st.stop()
 
 
 # --------------------------------------------------
@@ -222,6 +235,7 @@ profile_vars = [
 ]
 
 profile_summary = df_filtered[profile_vars].describe().T
+
 st.markdown("### Results: Descriptive Statistics")
 st.dataframe(profile_summary)
 
@@ -420,28 +434,31 @@ st.markdown("### Statistical Test: Difference in Average Spending")
 group_nonresponsive = df_filtered[df_filtered["Campaign_Response"] == 0]["Total_Spending"]
 group_responsive = df_filtered[df_filtered["Campaign_Response"] == 1]["Total_Spending"]
 
-t_stat, p_value = stats.ttest_ind(
-    group_nonresponsive,
-    group_responsive,
-    equal_var=False,
-    nan_policy="omit"
-)
+if len(group_nonresponsive) > 1 and len(group_responsive) > 1:
+    t_stat, p_value = stats.ttest_ind(
+        group_nonresponsive,
+        group_responsive,
+        equal_var=False,
+        nan_policy="omit"
+    )
 
-test_results = pd.DataFrame({
-    "Comparison": ["Responsive vs Non-responsive customers"],
-    "Mean Non-responsive": [group_nonresponsive.mean()],
-    "Mean Responsive": [group_responsive.mean()],
-    "Mean Difference": [group_responsive.mean() - group_nonresponsive.mean()],
-    "T-statistic": [t_stat],
-    "P-value": [p_value]
-})
+    test_results = pd.DataFrame({
+        "Comparison": ["Responsive vs Non-responsive customers"],
+        "Mean Non-responsive": [group_nonresponsive.mean()],
+        "Mean Responsive": [group_responsive.mean()],
+        "Mean Difference": [group_responsive.mean() - group_nonresponsive.mean()],
+        "T-statistic": [t_stat],
+        "P-value": [p_value]
+    })
 
-st.dataframe(test_results)
+    st.dataframe(test_results)
 
-if p_value < 0.05:
-    st.success("The difference in average spending is statistically significant at the 5% level.")
+    if p_value < 0.05:
+        st.success("The difference in average spending is statistically significant at the 5% level.")
+    else:
+        st.warning("The difference in average spending is not statistically significant at the 5% level.")
 else:
-    st.warning("The difference in average spending is not statistically significant at the 5% level.")
+    st.warning("Not enough observations in both groups to run the t-test.")
 
 st.markdown("""
 ### Business Interpretation
@@ -482,61 +499,69 @@ reg_df = df_filtered[
     ]
 ].dropna()
 
-X = reg_df[
-    [
-        "Income",
-        "Age",
-        "Campaign_Response",
-        "Children",
-        "Total_Purchases",
-        "Customer_Seniority"
+if len(reg_df) < 10:
+    st.warning("Not enough observations to estimate the OLS regression with the current filters.")
+else:
+    X = reg_df[
+        [
+            "Income",
+            "Age",
+            "Campaign_Response",
+            "Children",
+            "Total_Purchases",
+            "Customer_Seniority"
+        ]
     ]
-]
 
-X = sm.add_constant(X)
-y = reg_df["Total_Spending"]
+    X = sm.add_constant(X)
+    y = reg_df["Total_Spending"]
 
-ols_model = sm.OLS(y, X).fit()
+    try:
+        ols_model = sm.OLS(y, X).fit()
 
-ols_results = pd.DataFrame({
-    "Variable": ols_model.params.index,
-    "Coefficient": ols_model.params.values,
-    "P-value": ols_model.pvalues.values
-})
+        ols_results = pd.DataFrame({
+            "Variable": ols_model.params.index,
+            "Coefficient": ols_model.params.values,
+            "P-value": ols_model.pvalues.values
+        })
 
-ols_results["Significance"] = np.where(
-    ols_results["P-value"] < 0.05,
-    "Significant",
-    "Not significant"
-)
+        ols_results["Significance"] = np.where(
+            ols_results["P-value"] < 0.05,
+            "Significant",
+            "Not significant"
+        )
 
-st.markdown("### Results: OLS Regression")
-st.dataframe(ols_results)
+        st.markdown("### Results: OLS Regression")
+        st.dataframe(ols_results)
 
-st.markdown(f"""
-The R-squared of the model is **{ols_model.rsquared:.3f}**.
-""")
+        st.markdown(f"""
+        The R-squared of the model is **{ols_model.rsquared:.3f}**.
+        """)
 
-coef_plot = ols_results[ols_results["Variable"] != "const"].copy()
+        coef_plot = ols_results[ols_results["Variable"] != "const"].copy()
 
-fig_coef = px.bar(
-    coef_plot,
-    x="Variable",
-    y="Coefficient",
-    color="Significance",
-    title="OLS Coefficients: Drivers of Customer Spending"
-)
-st.plotly_chart(fig_coef, use_container_width=True)
+        fig_coef = px.bar(
+            coef_plot,
+            x="Variable",
+            y="Coefficient",
+            color="Significance",
+            title="OLS Coefficients: Drivers of Customer Spending"
+        )
+        st.plotly_chart(fig_coef, use_container_width=True)
 
-with st.expander("View full OLS regression output"):
-    st.text(ols_model.summary())
+        with st.expander("View full OLS regression output"):
+            st.text(ols_model.summary())
 
-st.markdown("""
-### Business Interpretation
-A positive coefficient indicates that the variable is associated with higher customer spending,
-holding other variables constant. A statistically significant coefficient suggests that the association
-is unlikely to be due to random variation in the sample.
-""")
+        st.markdown("""
+        ### Business Interpretation
+        A positive coefficient indicates that the variable is associated with higher customer spending,
+        holding other variables constant. A statistically significant coefficient suggests that the association
+        is unlikely to be due to random variation in the sample.
+        """)
+
+    except Exception as e:
+        st.warning("The OLS regression could not be estimated with the current filters.")
+        st.write(e)
 
 
 # --------------------------------------------------
@@ -572,64 +597,67 @@ logit_df = df_filtered[
     ]
 ].dropna()
 
-X_logit = logit_df[
-    [
-        "Income",
-        "Age",
-        "Children",
-        "Total_Purchases",
-        "Total_Spending",
-        "Recency",
-        "Digital_Engagement"
+if len(logit_df) < 20 or logit_df["Campaign_Response"].nunique() < 2:
+    st.warning("Not enough observations or variation to estimate the logistic regression with the current filters.")
+else:
+    X_logit = logit_df[
+        [
+            "Income",
+            "Age",
+            "Children",
+            "Total_Purchases",
+            "Total_Spending",
+            "Recency",
+            "Digital_Engagement"
+        ]
     ]
-]
 
-X_logit = sm.add_constant(X_logit)
-y_logit = logit_df["Campaign_Response"]
+    X_logit = sm.add_constant(X_logit)
+    y_logit = logit_df["Campaign_Response"]
 
-try:
-    logit_model = sm.Logit(y_logit, X_logit).fit(disp=False)
+    try:
+        logit_model = sm.Logit(y_logit, X_logit).fit(disp=False)
 
-    logit_results = pd.DataFrame({
-        "Variable": logit_model.params.index,
-        "Coefficient": logit_model.params.values,
-        "P-value": logit_model.pvalues.values
-    })
+        logit_results = pd.DataFrame({
+            "Variable": logit_model.params.index,
+            "Coefficient": logit_model.params.values,
+            "P-value": logit_model.pvalues.values
+        })
 
-    logit_results["Odds Ratio"] = np.exp(logit_results["Coefficient"])
+        logit_results["Odds Ratio"] = np.exp(logit_results["Coefficient"])
 
-    logit_results["Significance"] = np.where(
-        logit_results["P-value"] < 0.05,
-        "Significant",
-        "Not significant"
-    )
+        logit_results["Significance"] = np.where(
+            logit_results["P-value"] < 0.05,
+            "Significant",
+            "Not significant"
+        )
 
-    st.markdown("### Results: Logistic Regression")
-    st.dataframe(logit_results)
+        st.markdown("### Results: Logistic Regression")
+        st.dataframe(logit_results)
 
-    odds_plot = logit_results[logit_results["Variable"] != "const"].copy()
+        odds_plot = logit_results[logit_results["Variable"] != "const"].copy()
 
-    fig_odds = px.bar(
-        odds_plot,
-        x="Variable",
-        y="Odds Ratio",
-        color="Significance",
-        title="Odds Ratios: Factors Associated with Campaign Response"
-    )
-    st.plotly_chart(fig_odds, use_container_width=True)
+        fig_odds = px.bar(
+            odds_plot,
+            x="Variable",
+            y="Odds Ratio",
+            color="Significance",
+            title="Odds Ratios: Factors Associated with Campaign Response"
+        )
+        st.plotly_chart(fig_odds, use_container_width=True)
 
-    with st.expander("View full logistic regression output"):
-        st.text(logit_model.summary())
+        with st.expander("View full logistic regression output"):
+            st.text(logit_model.summary())
 
-    st.markdown("""
-    ### Business Interpretation
-    An odds ratio above 1 suggests that the variable is associated with a higher probability of campaign response.
-    An odds ratio below 1 suggests a lower probability of campaign response.
-    """)
+        st.markdown("""
+        ### Business Interpretation
+        An odds ratio above 1 suggests that the variable is associated with a higher probability of campaign response.
+        An odds ratio below 1 suggests a lower probability of campaign response.
+        """)
 
-except Exception as e:
-    st.warning("The logistic regression could not be estimated with the current filters. Try changing the filters.")
-    st.write(e)
+    except Exception as e:
+        st.warning("The logistic regression could not be estimated with the current filters.")
+        st.write(e)
 
 
 # --------------------------------------------------
@@ -662,83 +690,86 @@ segmentation_vars = [
 
 seg_df = df_filtered[segmentation_vars].dropna()
 
-if len(seg_df) >= 4:
-
-    scaler = StandardScaler()
-    seg_scaled = scaler.fit_transform(seg_df)
-
-    kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
-    clusters = kmeans.fit_predict(seg_scaled)
-
-    df_seg = df_filtered.loc[seg_df.index].copy()
-    df_seg["Segment"] = clusters
-
-    segment_summary = df_seg.groupby("Segment").agg(
-        Customers=("ID", "count"),
-        Average_Income=("Income", "mean"),
-        Average_Spending=("Total_Spending", "mean"),
-        Average_Purchases=("Total_Purchases", "mean"),
-        Average_Recency=("Recency", "mean"),
-        Campaigns_Accepted=("Total_Campaigns_Accepted", "mean"),
-        Digital_Engagement=("Digital_Engagement", "mean")
-    ).reset_index()
-
-    st.markdown("### Results: Segment Summary")
-    st.dataframe(segment_summary)
-
-    fig_segments = px.scatter(
-        df_seg,
-        x="Income",
-        y="Total_Spending",
-        color="Segment",
-        size="Total_Purchases",
-        hover_data=["Age", "Education", "Marital_Status"],
-        title="Customer Segments: Income vs Total Spending"
-    )
-    st.plotly_chart(fig_segments, use_container_width=True)
-
-    segment_long = segment_summary.melt(
-        id_vars="Segment",
-        value_vars=[
-            "Average_Income",
-            "Average_Spending",
-            "Average_Purchases",
-            "Average_Recency",
-            "Campaigns_Accepted",
-            "Digital_Engagement"
-        ],
-        var_name="Indicator",
-        value_name="Value"
-    )
-
-    fig_segment_bar = px.bar(
-        segment_long,
-        x="Indicator",
-        y="Value",
-        color="Segment",
-        barmode="group",
-        title="Segment Profiles Across Key Marketing Indicators"
-    )
-    st.plotly_chart(fig_segment_bar, use_container_width=True)
-
-    st.markdown("""
-    ### Business Interpretation
-    The segmentation can help the company design differentiated marketing strategies.
-    
-    Possible segment interpretations:
-    
-    - **High-value customers:** high income, high spending, and frequent purchases.
-    - **Campaign-responsive customers:** higher number of accepted campaigns.
-    - **Low-engagement customers:** low digital engagement and fewer purchases.
-    - **Potential customers:** moderate spending and engagement, with room for targeted campaigns.
-    """)
-
-else:
+if len(seg_df) < 10:
     st.warning("Not enough observations to perform customer segmentation with the current filters.")
+else:
+    try:
+        scaler = StandardScaler()
+        seg_scaled = scaler.fit_transform(seg_df)
+
+        kmeans = KMeans(n_clusters=4, random_state=42, n_init=10)
+        clusters = kmeans.fit_predict(seg_scaled)
+
+        df_seg = df_filtered.loc[seg_df.index].copy()
+        df_seg["Segment"] = clusters
+
+        segment_summary = df_seg.groupby("Segment").agg(
+            Customers=("ID", "count"),
+            Average_Income=("Income", "mean"),
+            Average_Spending=("Total_Spending", "mean"),
+            Average_Purchases=("Total_Purchases", "mean"),
+            Average_Recency=("Recency", "mean"),
+            Campaigns_Accepted=("Total_Campaigns_Accepted", "mean"),
+            Digital_Engagement=("Digital_Engagement", "mean")
+        ).reset_index()
+
+        st.markdown("### Results: Segment Summary")
+        st.dataframe(segment_summary)
+
+        fig_segments = px.scatter(
+            df_seg,
+            x="Income",
+            y="Total_Spending",
+            color="Segment",
+            size="Total_Purchases",
+            hover_data=["Age", "Education", "Marital_Status"],
+            title="Customer Segments: Income vs Total Spending"
+        )
+        st.plotly_chart(fig_segments, use_container_width=True)
+
+        segment_long = segment_summary.melt(
+            id_vars="Segment",
+            value_vars=[
+                "Average_Income",
+                "Average_Spending",
+                "Average_Purchases",
+                "Average_Recency",
+                "Campaigns_Accepted",
+                "Digital_Engagement"
+            ],
+            var_name="Indicator",
+            value_name="Value"
+        )
+
+        fig_segment_bar = px.bar(
+            segment_long,
+            x="Indicator",
+            y="Value",
+            color="Segment",
+            barmode="group",
+            title="Segment Profiles Across Key Marketing Indicators"
+        )
+        st.plotly_chart(fig_segment_bar, use_container_width=True)
+
+        st.markdown("""
+        ### Business Interpretation
+        The segmentation can help the company design differentiated marketing strategies.
+        
+        Possible segment interpretations:
+        
+        - **High-value customers:** high income, high spending, and frequent purchases.
+        - **Campaign-responsive customers:** higher number of accepted campaigns.
+        - **Low-engagement customers:** low digital engagement and fewer purchases.
+        - **Potential customers:** moderate spending and engagement, with room for targeted campaigns.
+        """)
+
+    except Exception as e:
+        st.warning("Customer segmentation could not be performed with the current filters.")
+        st.write(e)
 
 
 # --------------------------------------------------
-# Chi-square test
+# Additional Chi-square test
 # --------------------------------------------------
 
 st.markdown("---")
@@ -757,29 +788,32 @@ We use a Chi-square test of independence between education level and campaign re
 
 contingency_table = pd.crosstab(df_filtered["Education"], df_filtered["Campaign_Response"])
 
-chi2, chi2_p, dof, expected = stats.chi2_contingency(contingency_table)
-
-st.markdown("### Results: Contingency Table")
-st.dataframe(contingency_table)
-
-chi_results = pd.DataFrame({
-    "Chi-square statistic": [chi2],
-    "P-value": [chi2_p],
-    "Degrees of freedom": [dof]
-})
-
-st.dataframe(chi_results)
-
-if chi2_p < 0.05:
-    st.success("Education level and campaign response are statistically associated at the 5% level.")
+if contingency_table.shape[0] < 2 or contingency_table.shape[1] < 2:
+    st.warning("Not enough variation to run the Chi-square test with the current filters.")
 else:
-    st.warning("No statistically significant association is found between education level and campaign response at the 5% level.")
+    chi2, chi2_p, dof, expected = stats.chi2_contingency(contingency_table)
 
-st.markdown("""
-### Business Interpretation
-If education and campaign response are associated, education level may be useful for customer targeting
-and campaign personalization.
-""")
+    st.markdown("### Results: Contingency Table")
+    st.dataframe(contingency_table)
+
+    chi_results = pd.DataFrame({
+        "Chi-square statistic": [chi2],
+        "P-value": [chi2_p],
+        "Degrees of freedom": [dof]
+    })
+
+    st.dataframe(chi_results)
+
+    if chi2_p < 0.05:
+        st.success("Education level and campaign response are statistically associated at the 5% level.")
+    else:
+        st.warning("No statistically significant association is found between education level and campaign response at the 5% level.")
+
+    st.markdown("""
+    ### Business Interpretation
+    If education and campaign response are associated, education level may be useful for customer targeting
+    and campaign personalization.
+    """)
 
 
 # --------------------------------------------------
