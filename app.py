@@ -239,24 +239,18 @@ profile_summary = df_filtered[profile_vars].describe().T
 st.markdown("### Results: Descriptive Statistics")
 st.dataframe(profile_summary)
 
-# Detailed descriptive statistics interpretation
+# Key descriptive indicators
 age_mean = df_filtered["Age"].mean()
 age_sd = df_filtered["Age"].std()
-age_var = df_filtered["Age"].var()
 
 income_mean = df_filtered["Income"].mean()
 income_sd = df_filtered["Income"].std()
-income_var = df_filtered["Income"].var()
 
 spending_mean = df_filtered["Total_Spending"].mean()
 spending_sd = df_filtered["Total_Spending"].std()
-spending_var = df_filtered["Total_Spending"].var()
 
 purchases_mean = df_filtered["Total_Purchases"].mean()
 purchases_sd = df_filtered["Total_Purchases"].std()
-
-children_mean = df_filtered["Children"].mean()
-children_sd = df_filtered["Children"].std()
 
 recency_mean = df_filtered["Recency"].mean()
 recency_sd = df_filtered["Recency"].std()
@@ -264,32 +258,25 @@ recency_sd = df_filtered["Recency"].std()
 st.markdown(f"""
 ### Interpretation
 
-The descriptive statistics summarize both the **central tendency** and the **dispersion** of the main customer variables.
+The descriptive statistics provide an overview of the main characteristics of the customer base.
 
 - The **average age** of customers is **{age_mean:.1f} years**, with a standard deviation of **{age_sd:.1f} years**.
-  This means that customer ages typically vary by around **{age_sd:.1f} years** around the average age.
-  The variance of age is **{age_var:.1f}**. Variance measures dispersion in squared units, which is why the standard deviation is usually easier to interpret.
+  This means that customer ages are spread around the average by about **{age_sd:.1f} years**.
 
 - The **average income** is **${income_mean:,.0f}**, with a standard deviation of **${income_sd:,.0f}**.
-  This indicates that income levels differ considerably across customers.
-  The income variance is **{income_var:,.0f}**, but because it is expressed in squared monetary units, the standard deviation is more intuitive.
+  This suggests that customer income is relatively heterogeneous, which is important for targeting and segmentation.
 
 - The **average total spending** is **${spending_mean:,.0f}**, with a standard deviation of **${spending_sd:,.0f}**.
-  A high standard deviation in spending suggests that some customers spend much more than others, which is important for identifying high-value customers.
-  The spending variance is **{spending_var:,.0f}**.
+  A high standard deviation means that some customers spend much more than others, which helps identify high-value customers.
 
 - The **average number of purchases** is **{purchases_mean:.1f}**, with a standard deviation of **{purchases_sd:.1f}**.
-  This shows how purchasing frequency varies across the customer base.
-
-- The **average number of children or teenagers at home** is **{children_mean:.2f}**, with a standard deviation of **{children_sd:.2f}**.
-  This variable helps capture household structure and potential differences in consumption behavior.
+  This indicates that customers differ in their purchasing frequency.
 
 - The **average recency** is **{recency_mean:.1f} days**, with a standard deviation of **{recency_sd:.1f} days**.
   Recency measures the number of days since the last purchase. Lower values indicate more recent customers.
 
-In general, the **standard deviation** measures how far observations are from the mean on average.
-For example, if the standard deviation of age is around 11, it means that many customers are approximately 11 years above or below the average age.
-The **variance** measures the same dispersion, but in squared units, making it less direct for interpretation.
+Overall, the descriptive results show whether the customer base is homogeneous or heterogeneous.
+This is important before moving to segmentation and campaign-response analysis.
 """)
 
 col1, col2 = st.columns(2)
@@ -416,21 +403,23 @@ st.plotly_chart(fig_box_edu, use_container_width=True)
 top_category = spending_summary.iloc[0]["Product Category"]
 top_category_value = spending_summary.iloc[0]["Average Spending"]
 
+top_education_income = education_summary.sort_values("Average_Income", ascending=False).iloc[0]["Education"]
+top_education_spending = education_summary.sort_values("Average_Spending", ascending=False).iloc[0]["Education"]
+
 st.markdown(f"""
 ### Interpretation
 
-The spending analysis shows which product categories contribute most to customer value.
+The spending analysis highlights the main sources of customer value.
 
-- The category with the highest average spending is **{top_category}**, with an average spending of **${top_category_value:,.2f}**.
-  This suggests that this category is particularly important for revenue generation.
+- The product category with the highest average spending is **{top_category}**, with an average of **${top_category_value:,.2f}** per customer.
+  This category appears to be the most important contributor to customer spending.
 
-- The education-level comparison helps identify whether customers with different educational backgrounds have different income and spending profiles.
-  If a given education group shows both higher average income and higher average spending, it may represent an attractive target segment.
+- The education group with the highest average income is **{top_education_income}**.
 
-- The boxplot shows the distribution of total spending within each education group.
-  A wide box or long upper tail indicates strong heterogeneity, meaning that some customers in the group spend substantially more than others.
+- The education group with the highest average spending is **{top_education_spending}**.
 
-These results can help guide product-level marketing strategies and customer targeting.
+If the same education group has both high income and high spending, it may represent a particularly attractive segment.
+If income is high but spending is not, this may indicate an untapped potential for better targeting.
 """)
 
 
@@ -543,19 +532,15 @@ if len(group_nonresponsive) > 1 and len(group_responsive) > 1:
     st.markdown(f"""
     ### Interpretation
 
-    The t-test compares the average total spending of campaign-responsive and non-responsive customers.
+    The comparison shows whether campaign-responsive customers are different from non-responsive customers in terms of spending.
 
-    - The average spending of non-responsive customers is **${group_nonresponsive.mean():,.2f}**.
-    - The average spending of campaign-responsive customers is **${group_responsive.mean():,.2f}**.
+    - Non-responsive customers spend on average **${group_nonresponsive.mean():,.2f}**.
+    - Campaign-responsive customers spend on average **${group_responsive.mean():,.2f}**.
     - The estimated difference is **${group_responsive.mean() - group_nonresponsive.mean():,.2f}**.
-    - The t-statistic is **{t_stat:.3f}**.
     - The p-value is **{p_value:.4f}**.
 
     If the p-value is below 0.05, the difference is statistically significant.
-    This means that the observed difference in average spending is unlikely to be due to random variation alone.
-
-    However, this does not prove that campaigns caused higher spending, because customers were not randomly assigned
-    to campaign exposure.
+    However, the result remains observational. It does not prove that campaign response caused higher spending.
     """)
 
 else:
@@ -647,69 +632,50 @@ else:
         )
         st.plotly_chart(fig_coef, use_container_width=True)
 
-        st.markdown("### Interpretation of OLS Coefficients")
+        st.markdown("### Interpretation")
 
-        for _, row in ols_results.iterrows():
-            var = row["Variable"]
-            coef = row["Coefficient"]
-            pval = row["P-value"]
+        important_vars = ["Income", "Campaign_Response", "Children", "Total_Purchases"]
 
-            if var == "const":
-                continue
+        for var in important_vars:
+            if var in ols_results["Variable"].values:
+                row = ols_results[ols_results["Variable"] == var].iloc[0]
+                coef = row["Coefficient"]
+                pval = row["P-value"]
 
-            significance_text = (
-                "statistically significant at the 5% level"
-                if pval < 0.05
-                else "not statistically significant at the 5% level"
-            )
+                significance_text = (
+                    "statistically significant at the 5% level"
+                    if pval < 0.05
+                    else "not statistically significant at the 5% level"
+                )
 
-            if var == "Income":
-                st.markdown(f"""
+                if var == "Income":
+                    st.markdown(f"""
 - **Income:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  Holding other variables constant, a one-unit increase in income is associated with a change of **{coef:.4f}** in total spending.
-  Since income is measured in monetary units, the coefficient may look small.
-  For example, an increase of $1,000 in income is associated with an estimated change of **${coef * 1000:,.2f}** in total spending.
+  Holding other variables constant, an increase of **$1,000 in income** is associated with an estimated change of
+  **${coef * 1000:,.2f}** in total spending.
 """)
 
-            elif var == "Age":
-                st.markdown(f"""
-- **Age:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  Holding income, campaign response, children, purchases, and customer seniority constant,
-  one additional year of age is associated with a change of **${coef:,.2f}** in total spending.
-""")
-
-            elif var == "Campaign_Response":
-                st.markdown(f"""
+                elif var == "Campaign_Response":
+                    st.markdown(f"""
 - **Campaign Response:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  This coefficient compares customers who accepted at least one campaign with those who did not,
-  holding other variables constant.
-  If the coefficient is positive, campaign-responsive customers tend to spend more on average.
-  If it is negative, they tend to spend less.
-  This should be interpreted as an association, not as a causal campaign effect.
+  This compares customers who accepted at least one campaign with those who did not, holding other variables constant.
+  A positive coefficient suggests that campaign-responsive customers tend to spend more on average.
+  This is an association, not a causal effect.
 """)
 
-            elif var == "Children":
-                st.markdown(f"""
+                elif var == "Children":
+                    st.markdown(f"""
 - **Children:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  Holding other variables constant, having one additional child or teenager at home is associated
-  with a change of **${coef:,.2f}** in total spending.
-  A negative coefficient suggests that households with more children tend to spend less on the product categories included in this dataset.
+  Holding other variables constant, one additional child or teenager at home is associated with a change of
+  **${coef:,.2f}** in total spending.
 """)
 
-            elif var == "Total_Purchases":
-                st.markdown(f"""
+                elif var == "Total_Purchases":
+                    st.markdown(f"""
 - **Total Purchases:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  Holding other variables constant, one additional purchase is associated with an estimated change of **${coef:,.2f}** in total spending.
-  This variable is expected to be strongly related to total spending because more purchases generally imply higher customer value.
-""")
-
-            elif var == "Customer_Seniority":
-                st.markdown(f"""
-- **Customer Seniority:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
-  Holding other variables constant, one additional year since becoming a customer is associated
-  with a change of **${coef:,.2f}** in total spending.
-  A positive coefficient may suggest that longer customer relationships are associated with higher value,
-  while a negative coefficient may indicate weaker engagement over time.
+  Holding other variables constant, one additional purchase is associated with an estimated change of
+  **${coef:,.2f}** in total spending.
+  This is one of the most important variables because purchasing frequency is directly linked to customer value.
 """)
 
         with st.expander("View full OLS regression output"):
@@ -802,73 +768,53 @@ else:
         )
         st.plotly_chart(fig_odds, use_container_width=True)
 
-        st.markdown("### Interpretation of Logistic Regression Results")
+        st.markdown("### Interpretation")
 
-        for _, row in logit_results.iterrows():
-            var = row["Variable"]
-            odds = row["Odds Ratio"]
-            pval = row["P-value"]
+        important_logit_vars = ["Income", "Total_Spending", "Recency", "Digital_Engagement"]
 
-            if var == "const":
-                continue
+        for var in important_logit_vars:
+            if var in logit_results["Variable"].values:
+                row = logit_results[logit_results["Variable"] == var].iloc[0]
+                odds = row["Odds Ratio"]
+                pval = row["P-value"]
 
-            significance_text = (
-                "statistically significant at the 5% level"
-                if pval < 0.05
-                else "not statistically significant at the 5% level"
-            )
+                significance_text = (
+                    "statistically significant at the 5% level"
+                    if pval < 0.05
+                    else "not statistically significant at the 5% level"
+                )
 
-            if odds > 1:
-                direction = "higher"
-            else:
-                direction = "lower"
+                if odds > 1:
+                    direction = "higher"
+                else:
+                    direction = "lower"
 
-            if var == "Income":
-                st.markdown(f"""
+                if var == "Income":
+                    st.markdown(f"""
 - **Income:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  An odds ratio above 1 means that higher income is associated with a higher probability of campaign response.
-  An odds ratio below 1 means that higher income is associated with a lower probability of campaign response.
-  Because income is measured in monetary units, the effect of one dollar is usually very small.
+  This indicates whether customers with higher income are more or less likely to respond to campaigns.
+  Since income is measured in monetary units, the effect of one dollar is usually very small.
 """)
 
-            elif var == "Age":
-                st.markdown(f"""
-- **Age:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  This indicates that one additional year of age is associated with a **{direction}** likelihood of responding to a campaign,
-  holding other variables constant.
-""")
-
-            elif var == "Children":
-                st.markdown(f"""
-- **Children:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  This indicates whether households with more children or teenagers at home are more or less likely to respond to marketing campaigns.
-""")
-
-            elif var == "Total_Purchases":
-                st.markdown(f"""
-- **Total Purchases:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  This shows whether more frequent purchasers are more likely to respond to a campaign.
-""")
-
-            elif var == "Total_Spending":
-                st.markdown(f"""
+                elif var == "Total_Spending":
+                    st.markdown(f"""
 - **Total Spending:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  This indicates whether higher-spending customers are more likely to respond to a campaign.
-  Since spending is measured in monetary units, the marginal effect of one unit may be small.
+  This shows whether higher-value customers are associated with a **{direction}** likelihood of campaign response.
 """)
 
-            elif var == "Recency":
-                st.markdown(f"""
+                elif var == "Recency":
+                    st.markdown(f"""
 - **Recency:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
   Recency measures the number of days since the last purchase.
-  An odds ratio below 1 means that customers who purchased more recently are more likely to respond to campaigns.
-  An odds ratio above 1 means that customers with a longer time since last purchase are more likely to respond.
+  If the odds ratio is below 1, more recent customers are more likely to respond.
+  If it is above 1, customers with a longer time since their last purchase are more likely to respond.
 """)
 
-            elif var == "Digital_Engagement":
-                st.markdown(f"""
+                elif var == "Digital_Engagement":
+                    st.markdown(f"""
 - **Digital Engagement:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
-  This indicates whether customers with more web purchases and website visits are more or less likely to respond to campaigns.
+  This indicates whether customers with more web purchases and website visits are associated with a **{direction}**
+  likelihood of responding to campaigns.
 """)
 
         with st.expander("View full logistic regression output"):
@@ -970,21 +916,27 @@ else:
         )
         st.plotly_chart(fig_segment_bar, use_container_width=True)
 
-        st.markdown("""
+        highest_spending_segment = segment_summary.sort_values("Average_Spending", ascending=False).iloc[0]["Segment"]
+        highest_campaign_segment = segment_summary.sort_values("Campaigns_Accepted", ascending=False).iloc[0]["Segment"]
+        highest_digital_segment = segment_summary.sort_values("Digital_Engagement", ascending=False).iloc[0]["Segment"]
+
+        st.markdown(f"""
         ### Interpretation
 
-        The clustering results divide customers into four groups based on income, spending, purchases, recency,
-        campaign response, and digital engagement.
+        The clustering analysis identifies four customer segments based on income, spending, purchases,
+        recency, campaign response, and digital engagement.
 
-        Each segment should be interpreted by comparing its average values with the other segments:
+        - Segment **{highest_spending_segment}** has the highest average spending and can be interpreted as the strongest
+          **high-value customer segment**.
 
-        - A segment with high income, high spending, and frequent purchases can be interpreted as a **high-value customer segment**.
-        - A segment with high campaign acceptance can be interpreted as a **campaign-responsive segment**.
-        - A segment with low purchases and low digital engagement can be interpreted as a **low-engagement segment**.
-        - A segment with moderate income and spending may represent a **potential growth segment**.
+        - Segment **{highest_campaign_segment}** has the highest average campaign acceptance and may represent the most
+          **campaign-responsive segment**.
 
-        These segments can support differentiated marketing strategies, such as loyalty programs, personalized promotions,
-        retention campaigns, or digital engagement strategies.
+        - Segment **{highest_digital_segment}** has the highest digital engagement and may be particularly relevant
+          for online campaigns, web-based promotions, or digital loyalty strategies.
+
+        These segments can support differentiated marketing actions, such as loyalty programs for high-value customers,
+        personalized offers for campaign-responsive customers, and digital engagement strategies for online-active customers.
         """)
 
     except Exception as e:
@@ -1038,14 +990,10 @@ else:
 
     The Chi-square test examines whether education level and campaign response are statistically associated.
 
-    - The Chi-square statistic is **{chi2:.3f}**.
     - The p-value is **{chi2_p:.4f}**.
-    - The degrees of freedom are **{dof}**.
 
-    If the p-value is below 0.05, we reject the null hypothesis of independence.
-    This means that campaign response differs across education levels.
-
-    If the p-value is above 0.05, we do not find enough statistical evidence that education and campaign response are associated.
+    If the p-value is below 0.05, campaign response differs significantly across education levels.
+    If the p-value is above 0.05, there is not enough statistical evidence to conclude that education and campaign response are associated.
     """)
 
 
