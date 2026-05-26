@@ -86,7 +86,7 @@ df["Digital_Engagement"] = df["NumWebPurchases"] + df["NumWebVisitsMonth"]
 df = df.dropna(subset=["Income"])
 df = df[(df["Age"] >= 18) & (df["Age"] <= 100)]
 
-# Remove extreme income outliers for better visualization
+# Remove extreme income outliers for clearer visualization
 df = df[df["Income"] <= df["Income"].quantile(0.99)]
 
 
@@ -111,7 +111,7 @@ marital_filter = st.sidebar.multiselect(
     default=marital_options
 )
 
-# Security: if the user clears a filter, keep all categories
+# If the user clears a filter, keep all categories
 if len(education_filter) == 0:
     education_filter = education_options
 
@@ -140,7 +140,7 @@ This project analyzes customer-level marketing data to understand customer profi
 campaign responsiveness, and customer segmentation.
 
 The dashboard combines descriptive statistics, statistical tests, regression models, clustering,
-interactive visualizations, and business recommendations.
+interactive visualizations, and managerial recommendations.
 
 **Important note:** this is an observational marketing study. The results show associations and patterns,
 not causal effects.
@@ -221,7 +221,7 @@ The objective is to understand the general profile of the customer base.
 
 ### Method
 We use descriptive statistics and visualizations to analyze age, income, education, marital status,
-family structure, and customer seniority.
+family structure, customer seniority, purchasing frequency, and total spending.
 """)
 
 profile_vars = [
@@ -238,6 +238,59 @@ profile_summary = df_filtered[profile_vars].describe().T
 
 st.markdown("### Results: Descriptive Statistics")
 st.dataframe(profile_summary)
+
+# Detailed descriptive statistics interpretation
+age_mean = df_filtered["Age"].mean()
+age_sd = df_filtered["Age"].std()
+age_var = df_filtered["Age"].var()
+
+income_mean = df_filtered["Income"].mean()
+income_sd = df_filtered["Income"].std()
+income_var = df_filtered["Income"].var()
+
+spending_mean = df_filtered["Total_Spending"].mean()
+spending_sd = df_filtered["Total_Spending"].std()
+spending_var = df_filtered["Total_Spending"].var()
+
+purchases_mean = df_filtered["Total_Purchases"].mean()
+purchases_sd = df_filtered["Total_Purchases"].std()
+
+children_mean = df_filtered["Children"].mean()
+children_sd = df_filtered["Children"].std()
+
+recency_mean = df_filtered["Recency"].mean()
+recency_sd = df_filtered["Recency"].std()
+
+st.markdown(f"""
+### Interpretation
+
+The descriptive statistics summarize both the **central tendency** and the **dispersion** of the main customer variables.
+
+- The **average age** of customers is **{age_mean:.1f} years**, with a standard deviation of **{age_sd:.1f} years**.
+  This means that customer ages typically vary by around **{age_sd:.1f} years** around the average age.
+  The variance of age is **{age_var:.1f}**. Variance measures dispersion in squared units, which is why the standard deviation is usually easier to interpret.
+
+- The **average income** is **${income_mean:,.0f}**, with a standard deviation of **${income_sd:,.0f}**.
+  This indicates that income levels differ considerably across customers.
+  The income variance is **{income_var:,.0f}**, but because it is expressed in squared monetary units, the standard deviation is more intuitive.
+
+- The **average total spending** is **${spending_mean:,.0f}**, with a standard deviation of **${spending_sd:,.0f}**.
+  A high standard deviation in spending suggests that some customers spend much more than others, which is important for identifying high-value customers.
+  The spending variance is **{spending_var:,.0f}**.
+
+- The **average number of purchases** is **{purchases_mean:.1f}**, with a standard deviation of **{purchases_sd:.1f}**.
+  This shows how purchasing frequency varies across the customer base.
+
+- The **average number of children or teenagers at home** is **{children_mean:.2f}**, with a standard deviation of **{children_sd:.2f}**.
+  This variable helps capture household structure and potential differences in consumption behavior.
+
+- The **average recency** is **{recency_mean:.1f} days**, with a standard deviation of **{recency_sd:.1f} days**.
+  Recency measures the number of days since the last purchase. Lower values indicate more recent customers.
+
+In general, the **standard deviation** measures how far observations are from the mean on average.
+For example, if the standard deviation of age is around 11, it means that many customers are approximately 11 years above or below the average age.
+The **variance** measures the same dispersion, but in squared units, making it less direct for interpretation.
+""")
 
 col1, col2 = st.columns(2)
 
@@ -285,12 +338,6 @@ with col2:
     )
     st.plotly_chart(fig_marital, use_container_width=True)
 
-st.markdown("""
-### Business Interpretation
-This section provides a first overview of the customer base. Understanding the demographic and socioeconomic
-profile of customers is essential for designing relevant marketing strategies and identifying potential target groups.
-""")
-
 
 # --------------------------------------------------
 # Question 2
@@ -301,14 +348,15 @@ st.header("2. What are the main spending patterns?")
 
 st.markdown("""
 ### Research Question
-What are the main spending patterns across product categories?
+What are the main spending patterns across product categories and education levels?
 
 ### Objective
-The objective is to identify the product categories that generate the highest average customer spending.
+The objective is to identify the product categories that generate the highest average customer spending
+and to examine how spending and income vary across education levels.
 
 ### Method
-We calculate total spending and average spending by product category. We also examine the relationship
-between customer income and total spending.
+We calculate total spending and average spending by product category. We also compare average income
+and spending across education levels to examine how socioeconomic profiles relate to customer value.
 """)
 
 spending_summary = df_filtered[spending_cols].mean().reset_index()
@@ -326,29 +374,63 @@ fig_spending = px.bar(
 )
 st.plotly_chart(fig_spending, use_container_width=True)
 
-fig_income_spending = px.scatter(
-    df_filtered,
-    x="Income",
-    y="Total_Spending",
-    color="Education",
-    size="Total_Purchases",
-    hover_data=["Age", "Marital_Status", "Children"],
-    title="Income and Total Spending"
-)
-st.plotly_chart(fig_income_spending, use_container_width=True)
+education_summary = df_filtered.groupby("Education").agg(
+    Average_Income=("Income", "mean"),
+    Average_Spending=("Total_Spending", "mean"),
+    Median_Spending=("Total_Spending", "median"),
+    Average_Purchases=("Total_Purchases", "mean"),
+    Customers=("ID", "count")
+).reset_index()
+
+st.markdown("### Results: Income and Spending by Education Level")
+st.dataframe(education_summary)
+
+col1, col2 = st.columns(2)
+
+with col1:
+    fig_income_edu = px.bar(
+        education_summary,
+        x="Education",
+        y="Average_Income",
+        title="Average Income by Education Level"
+    )
+    st.plotly_chart(fig_income_edu, use_container_width=True)
+
+with col2:
+    fig_spending_edu = px.bar(
+        education_summary,
+        x="Education",
+        y="Average_Spending",
+        title="Average Spending by Education Level"
+    )
+    st.plotly_chart(fig_spending_edu, use_container_width=True)
 
 fig_box_edu = px.box(
     df_filtered,
     x="Education",
     y="Total_Spending",
-    title="Total Spending by Education Level"
+    title="Distribution of Total Spending by Education Level"
 )
 st.plotly_chart(fig_box_edu, use_container_width=True)
 
-st.markdown("""
-### Business Interpretation
-This section helps identify which product categories contribute most to customer value.
-The relationship between income and spending also provides useful information for targeting high-value customers.
+top_category = spending_summary.iloc[0]["Product Category"]
+top_category_value = spending_summary.iloc[0]["Average Spending"]
+
+st.markdown(f"""
+### Interpretation
+
+The spending analysis shows which product categories contribute most to customer value.
+
+- The category with the highest average spending is **{top_category}**, with an average spending of **${top_category_value:,.2f}**.
+  This suggests that this category is particularly important for revenue generation.
+
+- The education-level comparison helps identify whether customers with different educational backgrounds have different income and spending profiles.
+  If a given education group shows both higher average income and higher average spending, it may represent an attractive target segment.
+
+- The boxplot shows the distribution of total spending within each education group.
+  A wide box or long upper tail indicates strong heterogeneity, meaning that some customers in the group spend substantially more than others.
+
+These results can help guide product-level marketing strategies and customer targeting.
 """)
 
 
@@ -457,14 +539,27 @@ if len(group_nonresponsive) > 1 and len(group_responsive) > 1:
         st.success("The difference in average spending is statistically significant at the 5% level.")
     else:
         st.warning("The difference in average spending is not statistically significant at the 5% level.")
+
+    st.markdown(f"""
+    ### Interpretation
+
+    The t-test compares the average total spending of campaign-responsive and non-responsive customers.
+
+    - The average spending of non-responsive customers is **${group_nonresponsive.mean():,.2f}**.
+    - The average spending of campaign-responsive customers is **${group_responsive.mean():,.2f}**.
+    - The estimated difference is **${group_responsive.mean() - group_nonresponsive.mean():,.2f}**.
+    - The t-statistic is **{t_stat:.3f}**.
+    - The p-value is **{p_value:.4f}**.
+
+    If the p-value is below 0.05, the difference is statistically significant.
+    This means that the observed difference in average spending is unlikely to be due to random variation alone.
+
+    However, this does not prove that campaigns caused higher spending, because customers were not randomly assigned
+    to campaign exposure.
+    """)
+
 else:
     st.warning("Not enough observations in both groups to run the t-test.")
-
-st.markdown("""
-### Business Interpretation
-Campaign-responsive customers may represent a more valuable group if they show higher spending or purchasing activity.
-However, the comparison is observational and does not prove that campaigns caused higher spending.
-""")
 
 
 # --------------------------------------------------
@@ -536,6 +631,9 @@ else:
 
         st.markdown(f"""
         The R-squared of the model is **{ols_model.rsquared:.3f}**.
+
+        This means that approximately **{ols_model.rsquared * 100:.1f}%** of the variation in total customer spending
+        is explained by the variables included in the model.
         """)
 
         coef_plot = ols_results[ols_results["Variable"] != "const"].copy()
@@ -549,15 +647,73 @@ else:
         )
         st.plotly_chart(fig_coef, use_container_width=True)
 
+        st.markdown("### Interpretation of OLS Coefficients")
+
+        for _, row in ols_results.iterrows():
+            var = row["Variable"]
+            coef = row["Coefficient"]
+            pval = row["P-value"]
+
+            if var == "const":
+                continue
+
+            significance_text = (
+                "statistically significant at the 5% level"
+                if pval < 0.05
+                else "not statistically significant at the 5% level"
+            )
+
+            if var == "Income":
+                st.markdown(f"""
+- **Income:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  Holding other variables constant, a one-unit increase in income is associated with a change of **{coef:.4f}** in total spending.
+  Since income is measured in monetary units, the coefficient may look small.
+  For example, an increase of $1,000 in income is associated with an estimated change of **${coef * 1000:,.2f}** in total spending.
+""")
+
+            elif var == "Age":
+                st.markdown(f"""
+- **Age:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  Holding income, campaign response, children, purchases, and customer seniority constant,
+  one additional year of age is associated with a change of **${coef:,.2f}** in total spending.
+""")
+
+            elif var == "Campaign_Response":
+                st.markdown(f"""
+- **Campaign Response:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  This coefficient compares customers who accepted at least one campaign with those who did not,
+  holding other variables constant.
+  If the coefficient is positive, campaign-responsive customers tend to spend more on average.
+  If it is negative, they tend to spend less.
+  This should be interpreted as an association, not as a causal campaign effect.
+""")
+
+            elif var == "Children":
+                st.markdown(f"""
+- **Children:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  Holding other variables constant, having one additional child or teenager at home is associated
+  with a change of **${coef:,.2f}** in total spending.
+  A negative coefficient suggests that households with more children tend to spend less on the product categories included in this dataset.
+""")
+
+            elif var == "Total_Purchases":
+                st.markdown(f"""
+- **Total Purchases:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  Holding other variables constant, one additional purchase is associated with an estimated change of **${coef:,.2f}** in total spending.
+  This variable is expected to be strongly related to total spending because more purchases generally imply higher customer value.
+""")
+
+            elif var == "Customer_Seniority":
+                st.markdown(f"""
+- **Customer Seniority:** The coefficient is **{coef:.4f}** and is **{significance_text}**.
+  Holding other variables constant, one additional year since becoming a customer is associated
+  with a change of **${coef:,.2f}** in total spending.
+  A positive coefficient may suggest that longer customer relationships are associated with higher value,
+  while a negative coefficient may indicate weaker engagement over time.
+""")
+
         with st.expander("View full OLS regression output"):
             st.text(ols_model.summary())
-
-        st.markdown("""
-        ### Business Interpretation
-        A positive coefficient indicates that the variable is associated with higher customer spending,
-        holding other variables constant. A statistically significant coefficient suggests that the association
-        is unlikely to be due to random variation in the sample.
-        """)
 
     except Exception as e:
         st.warning("The OLS regression could not be estimated with the current filters.")
@@ -646,14 +802,77 @@ else:
         )
         st.plotly_chart(fig_odds, use_container_width=True)
 
+        st.markdown("### Interpretation of Logistic Regression Results")
+
+        for _, row in logit_results.iterrows():
+            var = row["Variable"]
+            odds = row["Odds Ratio"]
+            pval = row["P-value"]
+
+            if var == "const":
+                continue
+
+            significance_text = (
+                "statistically significant at the 5% level"
+                if pval < 0.05
+                else "not statistically significant at the 5% level"
+            )
+
+            if odds > 1:
+                direction = "higher"
+            else:
+                direction = "lower"
+
+            if var == "Income":
+                st.markdown(f"""
+- **Income:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  An odds ratio above 1 means that higher income is associated with a higher probability of campaign response.
+  An odds ratio below 1 means that higher income is associated with a lower probability of campaign response.
+  Because income is measured in monetary units, the effect of one dollar is usually very small.
+""")
+
+            elif var == "Age":
+                st.markdown(f"""
+- **Age:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  This indicates that one additional year of age is associated with a **{direction}** likelihood of responding to a campaign,
+  holding other variables constant.
+""")
+
+            elif var == "Children":
+                st.markdown(f"""
+- **Children:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  This indicates whether households with more children or teenagers at home are more or less likely to respond to marketing campaigns.
+""")
+
+            elif var == "Total_Purchases":
+                st.markdown(f"""
+- **Total Purchases:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  This shows whether more frequent purchasers are more likely to respond to a campaign.
+""")
+
+            elif var == "Total_Spending":
+                st.markdown(f"""
+- **Total Spending:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  This indicates whether higher-spending customers are more likely to respond to a campaign.
+  Since spending is measured in monetary units, the marginal effect of one unit may be small.
+""")
+
+            elif var == "Recency":
+                st.markdown(f"""
+- **Recency:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  Recency measures the number of days since the last purchase.
+  An odds ratio below 1 means that customers who purchased more recently are more likely to respond to campaigns.
+  An odds ratio above 1 means that customers with a longer time since last purchase are more likely to respond.
+""")
+
+            elif var == "Digital_Engagement":
+                st.markdown(f"""
+- **Digital Engagement:** The odds ratio is **{odds:.3f}** and is **{significance_text}**.
+  This indicates whether customers with more web purchases and website visits are more or less likely to respond to campaigns.
+""")
+
         with st.expander("View full logistic regression output"):
             st.text(logit_model.summary())
-
-        st.markdown("""
-        ### Business Interpretation
-        An odds ratio above 1 suggests that the variable is associated with a higher probability of campaign response.
-        An odds ratio below 1 suggests a lower probability of campaign response.
-        """)
 
     except Exception as e:
         st.warning("The logistic regression could not be estimated with the current filters.")
@@ -752,15 +971,20 @@ else:
         st.plotly_chart(fig_segment_bar, use_container_width=True)
 
         st.markdown("""
-        ### Business Interpretation
-        The segmentation can help the company design differentiated marketing strategies.
-        
-        Possible segment interpretations:
-        
-        - **High-value customers:** high income, high spending, and frequent purchases.
-        - **Campaign-responsive customers:** higher number of accepted campaigns.
-        - **Low-engagement customers:** low digital engagement and fewer purchases.
-        - **Potential customers:** moderate spending and engagement, with room for targeted campaigns.
+        ### Interpretation
+
+        The clustering results divide customers into four groups based on income, spending, purchases, recency,
+        campaign response, and digital engagement.
+
+        Each segment should be interpreted by comparing its average values with the other segments:
+
+        - A segment with high income, high spending, and frequent purchases can be interpreted as a **high-value customer segment**.
+        - A segment with high campaign acceptance can be interpreted as a **campaign-responsive segment**.
+        - A segment with low purchases and low digital engagement can be interpreted as a **low-engagement segment**.
+        - A segment with moderate income and spending may represent a **potential growth segment**.
+
+        These segments can support differentiated marketing strategies, such as loyalty programs, personalized promotions,
+        retention campaigns, or digital engagement strategies.
         """)
 
     except Exception as e:
@@ -809,10 +1033,19 @@ else:
     else:
         st.warning("No statistically significant association is found between education level and campaign response at the 5% level.")
 
-    st.markdown("""
-    ### Business Interpretation
-    If education and campaign response are associated, education level may be useful for customer targeting
-    and campaign personalization.
+    st.markdown(f"""
+    ### Interpretation
+
+    The Chi-square test examines whether education level and campaign response are statistically associated.
+
+    - The Chi-square statistic is **{chi2:.3f}**.
+    - The p-value is **{chi2_p:.4f}**.
+    - The degrees of freedom are **{dof}**.
+
+    If the p-value is below 0.05, we reject the null hypothesis of independence.
+    This means that campaign response differs across education levels.
+
+    If the p-value is above 0.05, we do not find enough statistical evidence that education and campaign response are associated.
     """)
 
 
@@ -821,7 +1054,7 @@ else:
 # --------------------------------------------------
 
 st.markdown("---")
-st.header("Business Recommendations")
+st.header("Managerial Recommendations")
 
 st.markdown("""
 Based on the analysis, the company could consider the following actions:
@@ -854,7 +1087,7 @@ The dashboard combines:
 - OLS regression;
 - logistic regression;
 - K-means customer segmentation;
-- business recommendations.
+- managerial recommendations.
 
 The results should be interpreted as associations rather than causal effects. A future extension could use
 a randomized A/B test or a Difference-in-Differences design to estimate the causal impact of a marketing campaign.
